@@ -1,0 +1,127 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background-color: #fafafa;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    padding: 20px;
+    gap: 40px;
+}
+
+.image-section {
+    display: block;
+}
+
+.image-section img {
+    max-width: 380px;
+    height: auto;
+}
+
+.login-section {
+    background-color: white;
+    padding: 40px;
+    border: 1px solid #dbdbdb;
+    text-align: center;
+    width: 350px;
+}
+
+.logo {
+    font-family: 'Brush Script MT', cursive;
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.login-form input {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border: 1px solid #dbdbdb;
+    background-color: #fafafa;
+}
+
+.login-form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #3897f0;
+    border: none;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+    border-radius: 4px;
+}
+
+.or-divider {
+    display: flex;
+    align-items: center;
+    margin: 15px 0;
+    color: #8e8e8e;
+    font-size: 13px;
+}
+
+.or-divider span {
+    flex: 1;
+    height: 1px;
+    background-color: #dbdbdb;
+}
+
+.facebook-login {
+    color: #385185;
+    font-weight: bold;
+    text-decoration: none;
+    display: block;
+    margin: 10px 0;
+}
+
+.forgot-password {
+    font-size: 12px;
+    text-decoration: none;
+    color: #00376b;
+}
+
+.signup-box {
+    border: 1px solid #dbdbdb;
+    background-color: white;
+    margin-top: 10px;
+    padding: 20px;
+    font-size: 14px;
+}
+
+.signup-box a {
+    color: #3897f0;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 12px;
+    color: #8e8e8e;
+}
+
+.footer-links {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.footer-links li {
+    cursor: pointer;
+}

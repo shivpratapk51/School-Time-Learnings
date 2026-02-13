@@ -1,0 +1,32 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+header{
+    height: 50px;
+    width: 100vw;
+}
+
+nav{
+    height: 100%;
+    width: 100%;
+    background-color: red;
+}
+
+.navBar{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+.left{
+    background-color: green;
+    height: 100px;
+    width: 100px;
+}
+
+.left img{
+    height: 50px;
+    width: 50px;
+}

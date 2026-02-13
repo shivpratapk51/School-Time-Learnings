@@ -1,0 +1,112 @@
+/* General Body Styles */
+body {
+    background-color: #0a0a0a;
+    color: #f0f0f0;
+    font-family: 'Orbitron', sans-serif;
+    margin: 0;
+    padding: 0;
+    border-top: 2px solid #00ffff;
+}
+
+/* Header Styles */
+header {
+    text-align: center;
+    padding: 2rem 0;
+    text-shadow: 0 0 10px #00ffff;
+}
+
+header h1 {
+    font-size: 3rem;
+    margin: 0;
+    letter-spacing: 5px;
+    color: #00ffff;
+}
+
+/* Main Container - Flexbox Layout */
+.container {
+    display: flex;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+/* Left Column Styles */
+.left-column {
+    flex: 1;
+    padding-right: 2rem;
+    border-right: 1px solid #00ffff;
+}
+
+.profile-picture-placeholder {
+    width: 200px;
+    height: 200px;
+    background-color: #1a1a1a;
+    border: 2px dashed #00ffff;
+    margin: 0 auto 2rem;
+}
+
+.skills h2, .allies h2 {
+    color: #00ffff;
+    border-bottom: 1px solid #00ffff;
+    padding-bottom: 0.5rem;
+    text-shadow: 0 0 5px #00ffff;
+}
+
+.skills ul, .allies ul {
+    list-style: none;
+    padding: 0;
+}
+
+.skills li, .allies li {
+    background-color: #1a1a1a;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    border-left: 3px solid #00ffff;
+}
+
+/* Right Column Styles */
+.right-column {
+    flex: 3;
+    padding-left: 2rem;
+}
+
+.bio h2, .missions h2, .contact h2 {
+    color: #00ffff;
+    border-bottom: 1px solid #00ffff;
+    padding-bottom: 0.5rem;
+    text-shadow: 0 0 5px #00ffff;
+}
+
+.bio p, .missions ul, .contact p {
+    line-height: 1.6;
+}
+
+.missions ul {
+    list-style: none;
+    padding: 0;
+}
+
+.missions li {
+    background-color: #1a1a1a;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-left: 3px solid #00ffff;
+    transition: background-color 0.3s ease;
+}
+
+.missions li:hover {
+    background-color: #2a2a2a;
+}
+
+/* Footer Styles */
+footer {
+    text-align: center;
+    padding: 2rem 0;
+    margin-top: 2rem;
+    border-top: 1px solid #00ffff;
+    font-size: 0.8rem;
+    color: #888;
+}
+
+/* Add Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');

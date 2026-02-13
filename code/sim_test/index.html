@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prokaryotic Cell Lab: Structure & Dynamics</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Import Maps: The modern fix for Three.js loading errors -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        .tab-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #2563eb;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header / Navigation -->
+    <header class="bg-white shadow-sm z-10">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-blue-600 text-white p-1 rounded">PRO</span>
+                karyotic Cell Lab
+            </h1>
+            <nav class="flex gap-2">
+                <button onclick="window.setMode('structure')" id="btn-structure" class="tab-btn active px-4 py-2 text-sm font-medium rounded-md border border-gray-200 hover:bg-gray-50 transition">3D Structure</button>
+                <button onclick="window.setMode('fission')" id="btn-fission" class="tab-btn px-4 py-2 text-sm font-medium rounded-md border border-gray-200 hover:bg-gray-50 transition">Binary Fission</button>
+                <button onclick="window.setMode('motility')" id="btn-motility" class="tab-btn px-4 py-2 text-sm font-medium rounded-md border border-gray-200 hover:bg-gray-50 transition">Motility</button>
+                <button onclick="window.setMode('environment')" id="btn-environment" class="tab-btn px-4 py-2 text-sm font-medium rounded-md border border-gray-200 hover:bg-gray-50 transition">Env. Lab</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Tooltip for 3D/Canvas -->
+        <div id="tooltip"></div>
+
+        <!-- Simulation Stage -->
+        <div class="flex-1 relative bg-gray-50" id="canvas-container">
+            <!-- 3D Container -->
+            <div id="three-container" class="absolute inset-0 w-full h-full"></div>
+            <!-- 2D Canvas for Fission/Motility/Lab -->
+            <canvas id="sim-canvas" class="absolute inset-0 w-full h-full hidden"></canvas>
+            
+            <!-- Overlay for 2D modes -->
+            <div id="overlay-stats" class="absolute top-4 left-4 bg-white/90 p-3 rounded shadow backdrop-blur-sm hidden">
+                <div class="text-sm font-bold text-gray-700">Live Stats</div>
+                <div id="stat-1" class="text-xs text-gray-600 mt-1">Population: 0</div>
+                <div id="stat-2" class="text-xs text-gray-600">Time: 0s</div>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <aside class="w-80 bg-white border-l border-gray-200 flex flex-col shadow-lg z-20">
+            
+            <!-- Dynamic Controls Container -->
+            <div class="p-5 flex-1 overflow-y-auto custom-scroll" id="controls-area">
+                <!-- Content injected via JS based on mode -->
+            </div>
+
+            <!-- Bottom Action Bar -->
+            <div class="p-4 border-t border-gray-200 bg-gray-50">
+                <button onclick="window.resetSimulation()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition flex justify-center items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Reset Current Module
+                </button>
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- Main Logic using ES Modules -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        /**
+         * APP STATE & CONFIGURATION
+         */
+        const state = {
+            mode: 'structure',
+            // 3D Structure State
+            showLabels: true,
+            viewMode: 'gram-negative',
+            // Fission State
+            replicationRate: 50,
+            divisionRate: 50,
+            fissionPop: [],
+            // Motility State
+            attractantConc: 50,
+            motilityCells: [],
+            // Environment State
+            temperature: 37,
+            ph: 7.0,
+            antibiotic: false,
+            envCells: [],
+            envTime: 0
+        };
+
+        // DOM Elements
+        const threeContainer = document.getElementById('three-container');
+        const simCanvas = document.getElementById('sim-canvas');
+        const ctx = simCanvas.getContext('2d');
+        const controlsArea = document.getElementById('controls-area');
+        const tooltip = document.getElementById('tooltip');
+        const overlayStats = document.getElementById('overlay-stats');
+        const stat1 = document.getElementById('stat-1');
+        const stat2 = document.getElementById('stat-2');
+
+        // THREE.JS Globals
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let bacteriumGroup;
+        let components = {}; 
+        let animationId;
+
+        // CHART.JS Globals
+        let chartInstance = null;
+
+        /**
+         * INITIALIZATION
+         */
+        function init() {
+            // Setup Three.js
+            initThreeJS();
+            
+            // Resize Listeners
+            window.addEventListener('resize', handleResize);
+            
+            // Interaction Listeners
+            threeContainer.addEventListener('mousemove', onThreeMouseMove);
+            threeContainer.addEventListener('click', onThreeClick);
+
+            // Initial Mode
+            setMode('structure');
+            loop();
+        }
+
+        function handleResize() {
+            // 3D Resize
+            if (camera && renderer && threeContainer) {
+                camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+            }
+            // 2D Resize
+            if(threeContainer && simCanvas) {
+                simCanvas.width = threeContainer.clientWidth;
+                simCanvas.height = threeContainer.clientHeight;
+            }
+        }
+
+        /**
+         * CORE LOOP
+         */
+        function loop() {
+            requestAnimationFrame(loop);
+
+            if (state.mode === 'structure') {
+                // Three.js Render
+                if (renderer && scene && camera) {
+                    animateStructure();
+                    controls.update();
+                    renderer.render(scene, camera);
+                }
+            } else {
+                // Canvas 2D Render
+                if(simCanvas.width === 0) handleResize();
+                ctx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+                
+                if (state.mode === 'fission') updateFission();
+                if (state.mode === 'motility') updateMotility();
+                if (state.mode === 'environment') updateEnvironment();
+            }
+        }
+
+        /**
+         * MODE SWITCHING & UI GENERATION
+         */
+        function setMode(mode) {
+            state.mode = mode;
+            
+            // UI Toggles
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById(`btn-${mode}`);
+            if(btn) btn.classList.add('active');
+
+            // Visibility Toggles
+            if (mode === 'structure') {
+                threeContainer.style.display = 'block';
+                simCanvas.style.display = 'none';
+                overlayStats.classList.add('hidden');
+                // Ensure renderer is resized correctly when reappearing
+                setTimeout(handleResize, 10);
+            } else {
+                threeContainer.style.display = 'none';
+                simCanvas.style.display = 'block';
+                overlayStats.classList.remove('hidden');
+                handleResize();
+            }
+
+            // Reset Simulations
+            if (mode === 'fission') initFission();
+            if (mode === 'motility') initMotility();
+            if (mode === 'environment') initEnvironment();
+
+            buildControls(mode);
+        }
+
+        function buildControls(mode) {
+            controlsArea.innerHTML = ''; // Clear
+
+            if (mode === 'structure') {
+                controlsArea.innerHTML = `
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">3D Explorable Model</h2>
+                    <p class="text-sm text-gray-600 mb-4">Rotate, zoom, and click components to learn more.</p>
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Cell Type</label>
+                        <div class="flex gap-2">
+                            <button onclick="window.changeStructure('gram-negative')" class="flex-1 py-2 px-2 text-xs bg-blue-100 hover:bg-blue-200 rounded border border-blue-300">Gram-Negative</button>
+                            <button onclick="window.changeStructure('gram-positive')" class="flex-1 py-2 px-2 text-xs bg-purple-100 hover:bg-purple-200 rounded border border-purple-300">Gram-Positive</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" onchange="window.toggleLabels(this.checked)" checked class="form-checkbox text-blue-600">
+                            <span class="text-sm text-gray-700">Show Component Labels</span>
+                        </label>
+                    </div>
+
+                    <div id="structure-info" class="p-4 bg-blue-50 border border-blue-100 rounded-lg hidden">
+                        <h3 class="font-bold text-blue-800" id="info-title">Component</h3>
+                        <p class="text-sm text-gray-700 mt-2" id="info-desc">Description...</p>
+                        <div class="mt-2 text-xs text-blue-600 font-semibold" id="info-analogy"></div>
+                        <div class="mt-1 text-xs text-gray-500 italic" id="info-relevance"></div>
+                    </div>
+                `;
+            } else if (mode === 'fission') {
+                controlsArea.innerHTML = `
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">Binary Fission</h2>
+                    <p class="text-sm text-gray-600 mb-4">Observe exponential growth.</p>
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Replication Rate</label>
+                        <input type="range" min="1" max="100" value="50" class="w-full" oninput="window.updateFissionRate(this.value, 'RepRate')">
+                        <span id="lbl-RepRate" class="text-xs text-gray-500">50%</span>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Division Threshold</label>
+                        <input type="range" min="1" max="100" value="50" class="w-full" oninput="window.updateDivisionRate(this.value, 'DivRate')">
+                        <span id="lbl-DivRate" class="text-xs text-gray-500">50%</span>
+                    </div>
+
+                    <div class="h-48 bg-white border rounded p-2">
+                        <canvas id="fission-chart"></canvas>
+                    </div>
+                `;
+                initChart();
+            } else if (mode === 'motility') {
+                controlsArea.innerHTML = `
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">Chemotaxis</h2>
+                    <p class="text-sm text-gray-600 mb-4">"Run and Tumble" movement towards nutrients.</p>
+
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Attractant (Sugar)</label>
+                        <input type="range" min="0" max="100" value="50" class="w-full" oninput="window.updateAttractant(this.value)">
+                        <div class="text-xs text-gray-500">Creates a gradient field</div>
+                    </div>
+
+                    <div class="p-3 bg-yellow-50 text-xs text-yellow-800 rounded border border-yellow-200">
+                        <strong>Observation:</strong><br>
+                        Cells move randomly (tumble). When moving <em>towards</em> food, they tumble less (longer runs). This biased random walk leads them to the source.
+                    </div>
+                `;
+            } else if (mode === 'environment') {
+                controlsArea.innerHTML = `
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">Environmental Lab</h2>
+                    <p class="text-sm text-gray-600 mb-4">Test cell survival limits.</p>
+
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Temperature (°C)</label>
+                        <input type="range" min="0" max="100" value="37" class="w-full accent-red-500" oninput="window.updateEnvParam('temp', this.value, 'TempLabel')">
+                        <span id="lbl-TempLabel" class="text-xs text-gray-500">37°C</span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">pH Level</label>
+                        <input type="range" min="1" max="14" step="0.1" value="7.0" class="w-full accent-purple-500" oninput="window.updateEnvParam('ph', this.value, 'PhLabel')">
+                        <span id="lbl-PhLabel" class="text-xs text-gray-500">7.0</span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" onchange="window.updateEnvParam('ab', this.checked)" class="form-checkbox text-red-600 h-5 w-5">
+                            <span class="text-gray-700 font-bold">Add Antibiotic (Penicillin)</span>
+                        </label>
+                    </div>
+
+                    <div class="mt-4 p-3 bg-gray-50 border rounded text-xs" id="env-readout">
+                        Status: Optimal
+                    </div>
+                `;
+            }
+        }
+
+        // --- Helper Functions attached to Window for UI interaction ---
+        window.setMode = setMode;
+        
+        window.resetSimulation = () => setMode(state.mode);
+        
+        window.changeStructure = (type) => {
+            const wall = bacteriumGroup.children.find(c => c.userData.name === 'Cell Wall');
+            if (wall && type === 'gram-positive') {
+                wall.material.color.setHex(0x6b46c1);
+                wall.material.opacity = 0.6;
+            } else if (wall) {
+                wall.material.color.setHex(0xe53e3e);
+                wall.material.opacity = 0.3;
+            }
+        };
+
+        window.toggleLabels = (show) => { state.showLabels = show; };
+
+        window.updateFissionRate = (val, id) => {
+            state.replicationRate = parseInt(val);
+            document.getElementById('lbl-' + id).innerText = val + '%';
+        };
+
+        window.updateDivisionRate = (val, id) => {
+            state.divisionRate = parseInt(val);
+            document.getElementById('lbl-' + id).innerText = val + '%';
+        };
+
+        window.updateAttractant = (val) => {
+            state.attractantConc = parseInt(val);
+        };
+
+        window.updateEnvParam = (type, val, lblId) => {
+            if(type === 'temp') {
+                state.temperature = parseInt(val);
+                document.getElementById('lbl-' + lblId).innerText = val + '°C';
+            }
+            if(type === 'ph') {
+                state.ph = parseFloat(val);
+                document.getElementById('lbl-' + lblId).innerText = val;
+            }
+            if(type === 'ab') {
+                state.antibiotic = val; // boolean
+            }
+        };
+
+        /**
+         * MODULE 1: THREE.JS STRUCTURE
+         */
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf3f4f6); // Gray-100
+            scene.fog = new THREE.Fog(0xf3f4f6, 10, 50);
+
+            camera = new THREE.PerspectiveCamera(45, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 1000);
+            camera.position.set(5, 5, 10);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+            threeContainer.appendChild(renderer.domElement);
+
+            // OrbitControls from Module
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 10, 10);
+            scene.add(dirLight);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            buildBacterium();
+        }
+
+        function buildBacterium() {
+            if(bacteriumGroup) scene.remove(bacteriumGroup);
+            bacteriumGroup = new THREE.Group();
+            components = {}; 
+
+            // Materials
+            const capsuleMat = new THREE.MeshPhongMaterial({ color: 0x4fd1c5, transparent: true, opacity: 0.2, shininess: 100 });
+            const wallMat = new THREE.MeshPhongMaterial({ color: 0xe53e3e, transparent: true, opacity: 0.3 }); 
+            const membraneMat = new THREE.MeshStandardMaterial({ color: 0xf6e05e, transparent: true, opacity: 0.4 });
+            const nucleoidMat = new THREE.MeshStandardMaterial({ color: 0x805ad5, wireframe: false });
+            const ribosomeMat = new THREE.MeshBasicMaterial({ color: 0x2b6cb0 });
+            
+            // Geometry Helper
+            const length = 4;
+            const radius = 1.5;
+
+            // 1. Capsule
+            const capsuleGeo = new THREE.CapsuleGeometry(radius + 0.2, length, 4, 8);
+            const capsule = new THREE.Mesh(capsuleGeo, capsuleMat);
+            capsule.userData = { 
+                name: "Capsule", 
+                desc: "Sticky outer layer of polysaccharides.", 
+                analogy: "Like an invisibility cloak or shield.", 
+                relevance: "Protects against immune system."
+            };
+            bacteriumGroup.add(capsule);
+            components[capsule.uuid] = capsule;
+
+            // 2. Cell Wall
+            const wallGeo = new THREE.CapsuleGeometry(radius, length, 4, 8);
+            const wall = new THREE.Mesh(wallGeo, wallMat);
+            wall.userData = { 
+                name: "Cell Wall", 
+                desc: "Rigid structure made of peptidoglycan.", 
+                analogy: "Like the frame of a bicycle.", 
+                relevance: "Maintains shape. Target of penicillin."
+            };
+            bacteriumGroup.add(wall);
+            components[wall.uuid] = wall;
+
+            // 3. Plasma Membrane
+            const memGeo = new THREE.CapsuleGeometry(radius - 0.1, length, 4, 8);
+            const membrane = new THREE.Mesh(memGeo, membraneMat);
+            membrane.userData = {
+                name: "Plasma Membrane",
+                desc: "Phospholipid bilayer with embedded proteins.",
+                analogy: "Like a security gate with guards.",
+                relevance: "Controls transport and generates energy."
+            };
+            bacteriumGroup.add(membrane);
+            components[membrane.uuid] = membrane;
+
+            // 4. Nucleoid (DNA)
+            class CustomSinCurve extends THREE.Curve {
+                constructor(scale = 1) { super(); this.scale = scale; }
+                getPoint(t, optionalTarget = new THREE.Vector3()) {
+                    const tx = t * 3 - 1.5;
+                    const ty = Math.sin(2 * Math.PI * t) * 0.5 * Math.sin(10 * t);
+                    const tz = Math.cos(2 * Math.PI * t) * 0.5 * Math.cos(10 * t);
+                    return optionalTarget.set(tx, ty, tz).multiplyScalar(this.scale);
+                }
+            }
+            const path = new CustomSinCurve(1.5);
+            const tubeGeo = new THREE.TubeGeometry(path, 64, 0.1, 8, false);
+            const nucleoid = new THREE.Mesh(tubeGeo, nucleoidMat);
+            nucleoid.userData = {
+                name: "Nucleoid (DNA)",
+                desc: "Circular bacterial chromosome.",
+                analogy: "The master blueprint.",
+                relevance: "Contains genetic info."
+            };
+            bacteriumGroup.add(nucleoid);
+            components[nucleoid.uuid] = nucleoid;
+
+            // 5. Ribosomes
+            const ribosomeGeo = new THREE.SphereGeometry(0.08, 4, 4);
+            const count = 100;
+            const ribosomes = new THREE.InstancedMesh(ribosomeGeo, ribosomeMat, count);
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < count; i++) {
+                dummy.position.set(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 4,
+                    (Math.random() - 0.5) * 2
+                );
+                if(dummy.position.length() < 2.5) {
+                     dummy.updateMatrix();
+                     ribosomes.setMatrixAt(i, dummy.matrix);
+                }
+            }
+            ribosomes.userData = {
+                name: "Ribosomes",
+                desc: "Sites of protein synthesis.",
+                analogy: "Construction workers.",
+                relevance: "Target of tetracycline."
+            };
+            bacteriumGroup.add(ribosomes);
+            components[ribosomes.uuid] = ribosomes;
+
+            // 6. Flagella
+            const flagellaCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, -2.5, 0),
+                new THREE.Vector3(0.5, -3.5, 0.5),
+                new THREE.Vector3(-0.5, -4.5, -0.5),
+                new THREE.Vector3(0.5, -5.5, 0.5),
+                new THREE.Vector3(0, -6.5, 0)
+            ]);
+            const flagellaGeo = new THREE.TubeGeometry(flagellaCurve, 20, 0.05, 8, false);
+            const flagellaMat = new THREE.MeshStandardMaterial({ color: 0xa0aec0 });
+            const flagella = new THREE.Mesh(flagellaGeo, flagellaMat);
+            flagella.userData = {
+                name: "Flagellum",
+                desc: "Whip-like tail for motility.",
+                analogy: "A boat propeller.",
+                relevance: "Enables movement towards nutrients."
+            };
+            bacteriumGroup.add(flagella);
+            components[flagella.uuid] = flagella;
+            bacteriumGroup.flagella = flagella;
+
+            scene.add(bacteriumGroup);
+        }
+
+        function animateStructure() {
+            if(bacteriumGroup) {
+                bacteriumGroup.rotation.y += 0.002;
+                bacteriumGroup.rotation.z += 0.001;
+                if(bacteriumGroup.flagella) {
+                    bacteriumGroup.flagella.rotation.z += 0.1;
+                }
+            }
+        }
+
+        function onThreeMouseMove(event) {
+            const rect = threeContainer.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(bacteriumGroup.children);
+
+            if (intersects.length > 0) {
+                threeContainer.style.cursor = 'pointer';
+                const obj = intersects[0].object;
+                if (state.showLabels) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = event.clientX + 10 + 'px';
+                    tooltip.style.top = event.clientY + 10 + 'px';
+                    tooltip.innerText = obj.userData.name || '';
+                }
+            } else {
+                threeContainer.style.cursor = 'default';
+                tooltip.style.display = 'none';
+            }
+        }
+
+        function onThreeClick(event) {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(bacteriumGroup.children);
+            if (intersects.length > 0) {
+                const data = intersects[0].object.userData;
+                const panel = document.getElementById('structure-info');
+                if(panel) {
+                    panel.classList.remove('hidden');
+                    document.getElementById('info-title').innerText = data.name;
+                    document.getElementById('info-desc').innerText = data.desc;
+                    document.getElementById('info-analogy').innerText = "Analogy: " + data.analogy;
+                    document.getElementById('info-relevance').innerText = "Relevance: " + data.relevance;
+                }
+                
+                intersects[0].object.material.emissive = new THREE.Color(0x333333);
+                setTimeout(() => {
+                    if(intersects[0].object.material.emissive)
+                        intersects[0].object.material.emissive = new THREE.Color(0x000000);
+                }, 500);
+            }
+        }
+
+        /**
+         * MODULE 2: BINARY FISSION
+         */
+        function initFission() {
+            state.fissionPop = [{ x: simCanvas.width/2, y: simCanvas.height/2, r: 10, age: 0, color: '#3b82f6' }];
+            if(chartInstance) {
+                chartInstance.data.labels = [];
+                chartInstance.data.datasets[0].data = [];
+                chartInstance.update();
+            }
+        }
+
+        function updateFission() {
+            const pop = state.fissionPop;
+            const newCells = [];
+            const growthSpeed = state.replicationRate / 200;
+            const splitThreshold = 20 - (state.divisionRate / 10);
+
+            pop.forEach(cell => {
+                if (cell.r < splitThreshold) {
+                    cell.r += growthSpeed;
+                } else {
+                    cell.r = 10;
+                    const offset = (Math.random() - 0.5) * 20;
+                    newCells.push({ x: cell.x + offset, y: cell.y + offset, r: 10, age: 0, color: '#3b82f6' });
+                }
+                
+                cell.x += (Math.random() - 0.5) * 2;
+                cell.y += (Math.random() - 0.5) * 2;
+
+                // Simple boundaries
+                if(cell.x < 0) cell.x = simCanvas.width;
+                if(cell.x > simCanvas.width) cell.x = 0;
+                if(cell.y < 0) cell.y = simCanvas.height;
+                if(cell.y > simCanvas.height) cell.y = 0;
+
+                ctx.beginPath();
+                ctx.ellipse(cell.x, cell.y, cell.r, cell.r * 0.6, Math.random()*3.14, 0, 2 * Math.PI);
+                ctx.fillStyle = cell.color;
+                ctx.fill();
+                ctx.strokeStyle = '#1e40af';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(cell.x - cell.r/2, cell.y);
+                ctx.lineTo(cell.x + cell.r/2, cell.y);
+                ctx.strokeStyle = 'white';
+                ctx.stroke();
+            });
+
+            state.fissionPop = pop.concat(newCells);
+            
+            if(state.fissionPop.length > 300) {
+                state.fissionPop.splice(0, newCells.length);
+            }
+
+            stat1.innerText = `Population: ${state.fissionPop.length}`;
+        }
+
+        function initChart() {
+            const ctxChart = document.getElementById('fission-chart');
+            if(!ctxChart) return;
+            
+            if(chartInstance) chartInstance.destroy();
+
+            // Chart.js is loaded globally via CDN, so window.Chart is available
+            chartInstance = new Chart(ctxChart, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Cell Count',
+                        data: [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: { x: { display: false } }
+                }
+            });
+
+            // Clean interval if exists (hack for simple single file)
+            if(window.chartInterval) clearInterval(window.chartInterval);
+            window.chartInterval = setInterval(() => {
+                if(state.mode === 'fission' && chartInstance) {
+                    const time = new Date().toLocaleTimeString();
+                    if (chartInstance.data.labels.length > 20) {
+                        chartInstance.data.labels.shift();
+                        chartInstance.data.datasets[0].data.shift();
+                    }
+                    chartInstance.data.labels.push(time);
+                    chartInstance.data.datasets[0].data.push(state.fissionPop.length);
+                    chartInstance.update();
+                }
+            }, 1000);
+        }
+
+        /**
+         * MODULE 3: MOTILITY
+         */
+        function initMotility() {
+            state.motilityCells = [];
+            for(let i=0; i<15; i++) {
+                state.motilityCells.push({
+                    x: Math.random() * simCanvas.width,
+                    y: Math.random() * simCanvas.height,
+                    angle: Math.random() * Math.PI * 2,
+                    mode: 'run',
+                    timer: 0,
+                    trail: []
+                });
+            }
+        }
+
+        function updateMotility() {
+            const centerX = simCanvas.width / 2;
+            const centerY = simCanvas.height / 2;
+            const maxRadius = Math.min(simCanvas.width, simCanvas.height) / 2;
+            
+            const grad = ctx.createRadialGradient(centerX, centerY, 10, centerX, centerY, maxRadius);
+            const alpha = state.attractantConc / 100;
+            grad.addColorStop(0, `rgba(252, 211, 77, ${alpha})`); 
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, simCanvas.width, simCanvas.height);
+
+            ctx.fillStyle = 'black';
+            ctx.font = '14px sans-serif';
+            ctx.fillText('Nutrient Source', centerX - 40, centerY);
+
+            state.motilityCells.forEach(cell => {
+                const angleToCenter = Math.atan2(centerY - cell.y, centerX - cell.x);
+                const angleDiff = Math.abs(cell.angle - angleToCenter);
+                const movingTowards = angleDiff < Math.PI / 2;
+
+                if (cell.mode === 'run') {
+                    const speed = 2;
+                    cell.x += Math.cos(cell.angle) * speed;
+                    cell.y += Math.sin(cell.angle) * speed;
+                    cell.timer++;
+
+                    if (cell.timer % 5 === 0) {
+                        cell.trail.push({x: cell.x, y: cell.y});
+                        if(cell.trail.length > 20) cell.trail.shift();
+                    }
+
+                    let runDuration = 60;
+                    if (state.attractantConc > 0) {
+                        if (movingTowards) runDuration = 120;
+                        else runDuration = 20;
+                    }
+                    
+                    if (cell.timer > runDuration) {
+                        cell.mode = 'tumble';
+                        cell.timer = 0;
+                    }
+                } else {
+                    cell.angle += (Math.random() - 0.5); 
+                    cell.timer++;
+                    if (cell.timer > 10) { 
+                        cell.mode = 'run';
+                        cell.timer = 0;
+                    }
+                }
+
+                if(cell.x < 0) cell.x = simCanvas.width;
+                if(cell.x > simCanvas.width) cell.x = 0;
+                if(cell.y < 0) cell.y = simCanvas.height;
+                if(cell.y > simCanvas.height) cell.y = 0;
+
+                ctx.beginPath();
+                if(cell.trail.length > 0) {
+                    ctx.moveTo(cell.trail[0].x, cell.trail[0].y);
+                    for(let p of cell.trail) ctx.lineTo(p.x, p.y);
+                }
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(cell.x, cell.y);
+                ctx.rotate(cell.angle);
+                
+                ctx.beginPath();
+                ctx.moveTo(-10, 0);
+                ctx.lineTo(-20, Math.sin(Date.now()/50)*5);
+                ctx.strokeStyle = '#aaa';
+                ctx.stroke();
+
+                ctx.fillStyle = cell.mode === 'run' ? '#10b981' : '#f59e0b';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI*2);
+                ctx.fill();
+                
+                ctx.restore();
+            });
+        }
+
+        /**
+         * MODULE 4: ENVIRONMENT LAB
+         */
+        function initEnvironment() {
+            state.envCells = [];
+            state.envTime = 0;
+            for(let i=0; i<8; i++) {
+                for(let j=0; j<6; j++) {
+                    state.envCells.push({
+                        x: 100 + i * 80 + Math.random()*20,
+                        y: 100 + j * 80 + Math.random()*20,
+                        hp: 100,
+                        state: 'alive'
+                    });
+                }
+            }
+        }
+
+        function updateEnvironment() {
+            state.envTime++;
+            const t = state.temperature;
+            const ph = state.ph;
+            const antibiotic = state.antibiotic;
+
+            let totalHealth = 0;
+            let livingCount = 0;
+
+            const tempStress = Math.abs(t - 37) / 37; 
+            const phStress = Math.abs(ph - 7) / 7; 
+            
+            let damage = 0;
+            if (tempStress > 0.5) damage += 0.5;
+            if (phStress > 0.4) damage += 0.5;
+            if (antibiotic) damage += 2.0;
+
+            if (damage === 0) damage = -0.5; 
+
+            state.envCells.forEach(cell => {
+                if (cell.state !== 'dead') {
+                    cell.hp -= damage;
+                    if (cell.hp > 100) cell.hp = 100;
+
+                    if (cell.hp <= 0) {
+                        cell.state = 'dead';
+                        cell.hp = 0;
+                    } else if (cell.hp < 50) {
+                        cell.state = 'stressed';
+                    } else {
+                        cell.state = 'alive';
+                    }
+
+                    const agitation = (t / 100) * 2; 
+                    cell.x += (Math.random() - 0.5) * agitation;
+                    cell.y += (Math.random() - 0.5) * agitation;
+
+                    livingCount++;
+                    totalHealth += cell.hp;
+                }
+
+                ctx.save();
+                ctx.translate(cell.x, cell.y);
+                
+                if (cell.state === 'dead') {
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 15, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#64748b';
+                    ctx.beginPath();
+                    ctx.moveTo(-5, -5); ctx.lineTo(5, 5);
+                    ctx.moveTo(5, -5); ctx.lineTo(-5, 5);
+                    ctx.stroke();
+                } else {
+                    const pulse = Math.sin(state.envTime / 10) * 2;
+                    
+                    if (cell.state === 'alive') ctx.fillStyle = '#22c55e';
+                    else ctx.fillStyle = '#ef4444'; 
+
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 20 + pulse, 10 + pulse, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(-15, -20, 30, 4);
+                    ctx.fillStyle = cell.state === 'alive' ? '#00ff00' : 'orange';
+                    ctx.fillRect(-15, -20, 30 * (cell.hp/100), 4);
+                }
+                ctx.restore();
+            });
+
+            const readout = document.getElementById('env-readout');
+            if(readout) {
+                if (livingCount === 0) {
+                    readout.innerText = "Status: STERILIZED (Population Extinct)";
+                    readout.className = "mt-4 p-3 bg-red-100 text-red-800 border rounded text-xs font-bold";
+                } else if (damage > 0) {
+                    readout.innerText = `Status: Under Stress (Health dropping)`;
+                    readout.className = "mt-4 p-3 bg-orange-100 text-orange-800 border rounded text-xs";
+                } else {
+                    readout.innerText = "Status: Optimal Growth Conditions";
+                    readout.className = "mt-4 p-3 bg-green-100 text-green-800 border rounded text-xs";
+                }
+            }
+            stat1.innerText = `Living Cells: ${livingCount}`;
+        }
+
+        // Start App
+        init();
+
+    </script>
+</body>
+</html>

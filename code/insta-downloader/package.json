@@ -1,0 +1,22 @@
+{
+  "name": "insta-downloader",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsc && node ./dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.2.0",
+    "axios": "^1.13.4",
+    "express": "^5.2.1",
+    "instagram-url-direct": "^2.0.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
